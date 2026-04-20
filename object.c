@@ -171,7 +171,7 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
 //
 // The caller is responsible for calling free(*data_out).
 // Returns 0 on success, -1 on error (file not found, corrupt, etc.).
-nt object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out) {
+int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out) {
     char path[512];
     object_path(id, path, sizeof(path));
 
@@ -194,3 +194,49 @@ nt object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t
     free(buf);
     return -1;
     }
+    fclose(f);
+
+    // Verify hash
+    ObjectID check_id;
+    compute_hash(buf, file_size, &check_id);
+
+    if (memcmp(check_id.hash, id->hash, HASH_SIZE) != 0) {
+        free(buf);
+        return -1; // corruption detected
+    }
+
+    // Find '\0'
+    unsigned char *null_pos = memchr(buf, '\0', file_size);
+    if (!null_pos) {
+        free(buf);
+        return -1;
+    }
+
+    // Parse header
+    char type_str[16];
+    size_t size;
+
+    sscanf((char *)buf, "%s %zu", type_str, &size);
+
+    if (strcmp(type_str, "blob") == 0) *type_out = OBJ_BLOB;
+    else if (strcmp(type_str, "tree") == 0) *type_out = OBJ_TREE;
+    else if (strcmp(type_str, "commit") == 0) *type_out = OBJ_COMMIT;
+    else {
+        free(buf);
+        return -1;
+    }
+
+    *len_out = size;
+
+    // Extract data
+    *data_out = malloc(size);
+    if (!*data_out) {
+        free(buf);
+        return -1;
+    }
+
+    memcpy(*data_out, null_pos + 1, size);
+
+    free(buf);
+    return 0;
+}
