@@ -134,3 +134,10 @@ int tree_from_index(const Index *index, ObjectID *tree_id_out) {
         fprintf(stderr, "error: index empty\n");
         return -1;
     }
+
+    char buffer[8192];
+    int offset = 0;
+
+    for (int i = 0; i < index->count; i++) {
+        char hash_hex[65];
+        hash_to_hex(&index->entries[i].hash, hash_hex);
