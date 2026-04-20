@@ -141,3 +141,9 @@ int tree_from_index(const Index *index, ObjectID *tree_id_out) {
     for (int i = 0; i < index->count; i++) {
         char hash_hex[65];
         hash_to_hex(&index->entries[i].hash, hash_hex);
+
+        offset += snprintf(buffer + offset, sizeof(buffer) - offset,
+                           "%o %s %s\n",
+                           index->entries[i].mode,
+                           hash_hex,
+                           index->entries[i].path);
