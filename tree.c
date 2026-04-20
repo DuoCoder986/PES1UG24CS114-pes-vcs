@@ -129,6 +129,7 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //   - object_write    : save that binary buffer to the store as OBJ_TREE
 //
 // Returns 0 on success, -1 on error.
+// Build tree object from index
 int tree_from_index(const Index *index, ObjectID *tree_id_out) {
     if (index->count == 0) {
         fprintf(stderr, "error: index empty\n");
@@ -147,3 +148,9 @@ int tree_from_index(const Index *index, ObjectID *tree_id_out) {
                            index->entries[i].mode,
                            hash_hex,
                            index->entries[i].path);
+
+        if (offset >= (int)sizeof(buffer)) {
+            fprintf(stderr, "error: tree too large\n");
+            return -1;
+        }
+    }
