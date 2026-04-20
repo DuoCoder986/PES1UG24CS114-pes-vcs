@@ -102,18 +102,51 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
         default: return -1;
     }
 
+    // Build full object: "type size\0data"
     char header[64];
     int header_len = snprintf(header, sizeof(header), "%s %zu", type_str, len);
-
     size_t full_len = header_len + 1 + len;
+
     uint8_t *full = malloc(full_len);
     if (!full) return -1;
-    memcpy(full, header, header_len + 1);  // includes '\0'
+    memcpy(full, header, header_len + 1);
     memcpy(full + header_len + 1, data, len);
 
-    // TODO: rest of implementation
+    // Hash, deduplicate
+    compute_hash(full, full_len, id_out);
+    if (object_exists(id_out)) { free(full); return 0; }
+
+    // Build final path, extract shard dir
+    char final_path[512], shard_dir[512];
+    object_path(id_out, final_path, sizeof(final_path));
+    snprintf(shard_dir, sizeof(shard_dir), "%s", final_path);
+    *strrchr(shard_dir, '/') = '\0';
+    mkdir(shard_dir, 0755);
+
+    // Temp file + write loop
+    char tmp_path[512];
+    snprintf(tmp_path, sizeof(tmp_path), "%s/tmpXXXXXX", shard_dir);
+    int fd = mkstemp(tmp_path);
+    if (fd < 0) { free(full); return -1; }
+
+    size_t written = 0;
+    while (written < full_len) {
+        ssize_t n = write(fd, full + written, full_len - written);
+        if (n < 0) { close(fd); unlink(tmp_path); free(full); return -1; }
+        written += n;
+    }
     free(full);
-    return -1;
+
+    if (fsync(fd) < 0) { close(fd); unlink(tmp_path); return -1; }
+    close(fd);
+
+    if (rename(tmp_path, final_path) < 0) { unlink(tmp_path); return -1; }
+
+    // fsync shard dir
+    int dir_fd = open(shard_dir, O_RDONLY);
+    if (dir_fd >= 0) { fsync(dir_fd); close(dir_fd); }
+
+    return 0;
 }
 
 // Read an object from the store.
