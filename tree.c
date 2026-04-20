@@ -154,3 +154,12 @@ int tree_from_index(const Index *index, ObjectID *tree_id_out) {
             return -1;
         }
     }
+
+    // Write tree object
+    if (object_write(OBJ_TREE, buffer, offset, tree_id_out) != 0) {
+        fprintf(stderr, "error: failed to write tree\n");
+        return -1;
+    }
+
+    return 0;
+}
